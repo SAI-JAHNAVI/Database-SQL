@@ -1,0 +1,180 @@
+/*
+ *
+ * Northwind database schema:
+ *  Region(regionID: PK, regionDescription) regionID
+ *  Orders(orderID: PK, customerID, employeeID, orderDate, requiredDate, shippedDate,
+ *         shipVia, freight, shipName, shipAddress, shipCity, shipRegion, shipPostalCode, shipCountry)
+ *  Order_Details(orderID: PK, productID: PK, unitPrice, quantity, discount)
+ *  Categories(categoryID: PK, categoryName, description, picture)
+ *  Employees(employeeID: PK, lastName, firstName, title, titleOfCourtesy, birthDate, hireDate,
+ *            address, city, region, postalCode, country, homepage, extension, photo, notes, reportsTo, photoPath)
+ *  EmployeeTerritories(employeeID: PK, territoryID: PK)
+ *  Territory(territoryID: PK, territoryDescription, regionID)
+ *  Customers(customerID: PK, companyName, contactName, contactTitle, address,
+ *            city, region, postalCode, country, phone, fax)
+ *  CustomerCustomerDemo(customerID: PK, customerTypeID: PK)
+ *  CustomerDemographics(customerTypeID: PK, customerDesc)
+ *  Shippers(shipperID: PK, companyName, phone)
+ *  USStates(stateID: PK, stateName, stateAbbr, stateRegion)
+ *  Products(productId: PK, productName, supplierID, categoryID, quantityPerUnit, unitPrice, unitsInStock, unitsOnOrder, reorderLevel, discontinued)
+ * 
+ */
+
+-- Simple Queries
+/* Query 1:
+Find all customers who are located in 'USA'
+*/
+
+
+SELECT contactName FROM customers WHERE country='USA';
+
+
+
+/* Query 2:
+Find all customers who are located in 'USA', and for each customer
+display the company name, and region.
+*/
+
+SELECT contactName,companyName,region FROM customers WHERE country='USA';
+
+
+/* Query 3:
+Find all products which are discontinued and with a unit price less than 50,
+and for each, display the following: productname, unitprice, and unitsinstock,
+under the column names:  "Discontinued Products", "Unit Price", and "Units in Stock", respectively.
+(Hint: use "Discontinued Products" as an alias)
+*/
+
+SELECT productName AS "Discontinued Products",unitPrice AS "Unit Price", unitsInStock AS "Units in Stock" FROM Products WHERE discontinued=1 AND unitPrice<50;
+
+
+
+/* Query 4:
+For each employee display: the employee full name, and
+the employee age when he/she was hired (age in days can be computed by: hiredate - birthdate)
+*/
+
+
+(a)Query for age in days
+   SELECT firstName||lastName AS fullName,(hireDate-birthDate) AS ageInDays FROM employees;
+ 
+ 
+ 
+(b)Query for age in years
+   SELECT firstName||lastName AS fullName,(hireDate-birthDate)/365 AS ageInYears FROM employees;
+
+
+/* Query 5:
+Find all product names that consist of three words or more
+(Hint: the pattern '% %' matches strings with at least one blank, for example 'Ipoh Coffee')
+*/
+
+SELECT productName FROM products WHERE productName LIKE '% %% %% %';
+
+
+-- Complex Queries
+/* Query 6:
+For each product, display the product name and, its category name
+(find the answer using cross product)
+*/
+
+It can be written in 2 ways as follows:
+
+  (a)SELECT productName,categoryName FROM products CROSS JOIN categories where products.categoryID=categories.CategoryID;
+  
+ 
+  (b)SELECT productName,categoryName FROM products,categories WHERE products.categoryID=categories.CategoryID;
+
+
+
+/* Query 7:
+Repeat query #6, but using natural join. Sort the tuples by category name.
+*/
+
+SELECT productName,categoryName FROM products NATURAL JOIN categories ORDER BY categoryName;
+
+
+
+/* Query 8:
+Find all product pairs that come from the same supplier (same supplierid).
+Make sure not to list the same pair twice.
+(hint: consider using self-join on products, and tuple variables)
+*/
+
+SELECT p1.productName,p2.productName FROM products p1, products p2 WHERE p1.supplierID=p2.supplierID and p1.productName<p2.productName;
+
+
+
+/* Query 9:
+Find all products that were shipped either to Poland or Norway (or both)
+*/
+
+(SELECT productName,shipCountry FROM orders,products WHERE shipCountry='Poland') UNION (SELECT productName,shipCountry FROM orders,products WHERE shipCountry='Norway') ORDER BY productName;
+
+
+
+/* Query 10:
+Repeat query#3, but using set intersection. Display only the product name, and price.
+Sort the tuples by product name into descending order.
+(sort after taking the intersection)
+*/
+
+
+(SELECT productName,unitPrice AS price FROM products WHERE discontinued=1) INTERSECT (SELECT productName,unitPrice FROM products WHERE unitPrice<50) ORDER BY productName DESC;
+
+
+
+/* Query 11:
+Find all products with a unitprice above the average unitprice. For each, display only the product name, and the unitprice.
+Sort by productname. Use a subquery in the WHERE clause to find the average unit price.
+*/
+
+
+SELECT productName,unitPrice FROM products WHERE unitPrice > (SELECT AVG(unitPrice) FROM products) ORDER BY productName;
+
+
+
+/* Query 12:
+Find all products with a unitprice greater than the unitprice for all seafood-products,
+and for each display the product name and unitprice, sorted by productname.
+First collect all the seafood-product unitprices using a subquery,
+then in the parent query compare product unit prices to prices in the child subquery using the operator (> ALL).
+*/
+
+We can write it in 2 ways as follows:
+
+   (a)SELECT productName,unitPrice FROM products WHERE unitPrice > ALL (SELECT unitPrice FROM (categories NATURAL JOIN products) WHERE categoryName='seafood') ORDER BY productName;
+
+   (b)SELECT productName,unitPrice FROM products WHERE unitPrice > ALL(SELECT unitPrice FROM products p, categories c WHERE p.categoryId=c.categoryId and c.categoryName='seafood') ORDER BY productName;
+
+
+
+/* Query 13:
+For each category display the category name, minimum product unitprice, and maximum product unitprice, for products in the category.
+Sort the results by categoryname.
+*/
+
+SELECT categoryName, MIN(unitPrice), MAX(unitPrice) FROM (categories NATURAL JOIN products ) GROUP BY  categoryName ORDER BY categoryName;
+
+
+/* Query 14:
+Find the suppliers who supplied products that were shipped to Brazil in 1996. For each supplier display
+the supplier (company) name, and the product name. Use a subquery in the FROM clause to collect
+the product names, and the supplier IDs for those products shipped to Brazil in 1996.
+Then perform a natural left join between suppliers and the constructed relation, and display the required output.
+Suppliers with no products shipped to Brazil in 1996, will appear in the results as well.
+To extract year from dates, use the function date_part('year', orderdate).
+*/
+
+
+SELECT supp.CompanyName,x.productName
+FROM suppliers AS supp
+NATURAL LEFT JOIN
+(
+SELECT p.productName,s.supplierID,s.companyName,p.productID
+FROM suppliers AS s 
+JOIN products AS p ON s.supplierID = p.supplierID
+JOIN order_Details od ON p.productID = od.productID
+JOIN orders o ON o.orderID = od.orderID 
+WHERE p.productID IS NOT NULL AND shipCountry IN ('Brazil') AND date_part('year',shippedDate) = 1996) AS x ;
+ON supp.supplierID = x.supplierID;
